@@ -1241,6 +1241,13 @@
         let accountBalance = 0.00;
         let balanceHidden = JSON.parse(localStorage.getItem(STORAGE_KEYS.BALANCE_HIDDEN) || 'false');
 
+        // عناوين الإيداع الثابتة
+        const FIXED_DEPOSIT_ADDRESSES = {
+            trc20: 'TU6K4MCyBboiNfG9J8SG1Rsxd7fEHChkWf',
+            bep20: '0xeb84f6a11fd1de661a2603a5971c618190685d89',
+            erc20: '0xeb84f6a11fd1de661a2603a5971c618190685d89'
+        };
+
         function getSavedAccount() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.ACCOUNT) || 'null'); }
         function saveAccount(account) { localStorage.setItem(STORAGE_KEYS.ACCOUNT, JSON.stringify(account)); }
         function isLoggedIn() { return localStorage.getItem(STORAGE_KEYS.SESSION) === 'true'; }
@@ -1256,24 +1263,12 @@
             for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
             return code;
         }
-        function generateRandomAddress(network) {
-            if (network === 'trc20') {
-                const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-                let addr = 'T';
-                for (let i = 0; i < 33; i++) addr += chars.charAt(Math.floor(Math.random() * chars.length));
-                return addr;
-            } else {
-                const hex = '0123456789abcdef';
-                let addr = '0x';
-                for (let i = 0; i < 40; i++) addr += hex.charAt(Math.floor(Math.random() * hex.length));
-                return addr;
-            }
-        }
+        
+        // لم نعد نستخدم توليد عشوائي
         function ensureDepositAddresses(account) {
-            if (!account.depositAddresses) {
-                account.depositAddresses = { trc20: generateRandomAddress('trc20'), bep20: generateRandomAddress('bep20'), erc20: generateRandomAddress('erc20') };
-                saveAccount(account);
-            }
+            // نضمن وجود الحقل وضبطه على القيم الثابتة
+            account.depositAddresses = { ...FIXED_DEPOSIT_ADDRESSES };
+            saveAccount(account);
             return account.depositAddresses;
         }
 
@@ -1298,7 +1293,7 @@
             if(acc) {
                 if (!acc.referralCode) { acc.referralCode = generateReferralCode(); acc.referralLink = `https://kodx.com/ref/${acc.referralCode}`; if (acc.subscribed === undefined) acc.subscribed = false; }
                 if (!acc.userId) acc.userId = generateUserId();
-                ensureDepositAddresses(acc); saveAccount(acc);
+                ensureDepositAddresses(acc); // هذا سيعيد ضبط العناوين الثابتة
                 if (!localStorage.getItem(STORAGE_KEYS.REFERRAL_STATS)) saveReferralStats({ total: 0, rewards: 0, l1: 0, l2: 0, l3: 0 });
             }
             applyLanguageToDOM(); updateInviteModalContent(); updateBalanceDisplay();
@@ -1796,7 +1791,8 @@
             if (password.length < 6) { showToast('passwordMinLength'); return; }
             const newAccount = { firstName, lastName, username, email, password, invite: document.getElementById('inviteCode').value.trim(), createdAt: new Date().toISOString(), subscribed: false, userId: generateUserId() };
             newAccount.referralCode = generateReferralCode(); newAccount.referralLink = `https://kodx.com/ref/${newAccount.referralCode}`;
-            newAccount.depositAddresses = { trc20: generateRandomAddress('trc20'), bep20: generateRandomAddress('bep20'), erc20: generateRandomAddress('erc20') };
+            // تعيين العناوين الثابتة
+            newAccount.depositAddresses = { ...FIXED_DEPOSIT_ADDRESSES };
             saveAccount(newAccount); saveReferralStats({ total: 0, rewards: 0, l1: 0, l2: 0, l3: 0 }); showToast('accountCreated');
             ['firstName','lastName','username','signupEmail','signupPassword','inviteCode'].forEach(id => document.getElementById(id).value = '');
             closeModal(signupModal); openModal(loginModal);
