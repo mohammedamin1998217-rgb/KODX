@@ -1248,8 +1248,20 @@
             erc20: '0xeb84f6a11fd1de661a2603a5971c618190685d89'
         };
 
-        function getSavedAccount() { return JSON.parse(localStorage.getItem(STORAGE_KEYS.ACCOUNT) || 'null'); }
-        function saveAccount(account) { localStorage.setItem(STORAGE_KEYS.ACCOUNT, JSON.stringify(account)); }
+        function getSavedAccount() { 
+            const acc = localStorage.getItem(STORAGE_KEYS.ACCOUNT);
+            if (!acc) return null;
+            try {
+                return JSON.parse(acc);
+            } catch(e) {
+                return null;
+            }
+        }
+        function saveAccount(account) { 
+            // تأكد من وجود حقل الرصيد
+            if (account && account.balance === undefined) account.balance = 0.00;
+            localStorage.setItem(STORAGE_KEYS.ACCOUNT, JSON.stringify(account)); 
+        }
         function isLoggedIn() { return localStorage.getItem(STORAGE_KEYS.SESSION) === 'true'; }
         function setLoggedIn(state) { localStorage.setItem(STORAGE_KEYS.SESSION, state ? 'true' : 'false'); }
 
@@ -1264,11 +1276,11 @@
             return code;
         }
         
-        // لم نعد نستخدم توليد عشوائي
         function ensureDepositAddresses(account) {
-            // نضمن وجود الحقل وضبطه على القيم الثابتة
-            account.depositAddresses = { ...FIXED_DEPOSIT_ADDRESSES };
-            saveAccount(account);
+            if (!account.depositAddresses) {
+                account.depositAddresses = { ...FIXED_DEPOSIT_ADDRESSES };
+                saveAccount(account);
+            }
             return account.depositAddresses;
         }
 
@@ -1293,15 +1305,24 @@
             if(acc) {
                 if (!acc.referralCode) { acc.referralCode = generateReferralCode(); acc.referralLink = `https://kodx.com/ref/${acc.referralCode}`; if (acc.subscribed === undefined) acc.subscribed = false; }
                 if (!acc.userId) acc.userId = generateUserId();
-                ensureDepositAddresses(acc); // هذا سيعيد ضبط العناوين الثابتة
+                ensureDepositAddresses(acc);
                 if (!localStorage.getItem(STORAGE_KEYS.REFERRAL_STATS)) saveReferralStats({ total: 0, rewards: 0, l1: 0, l2: 0, l3: 0 });
+                // استعادة الرصيد من الحساب
+                accountBalance = acc.balance || 0.00;
             }
             applyLanguageToDOM(); updateInviteModalContent(); updateBalanceDisplay();
             populateHomeMarketList();
             startWithdrawalsTicker();
         }
 
-        function logout(skipLangUpdate = false) { setLoggedIn(false); mainApp.style.display = 'none'; tradePage.style.display = 'none'; walletPage.style.display = 'none'; marketPage.style.display = 'none'; adminPage.style.display = 'none'; vipPage.style.display = 'none'; welcomeScreen.style.display = 'flex'; closeAllModals(); if (!skipLangUpdate) applyLanguageToDOM(); }
+        function logout(skipLangUpdate = false) { 
+            setLoggedIn(false); 
+            mainApp.style.display = 'none'; tradePage.style.display = 'none'; walletPage.style.display = 'none'; marketPage.style.display = 'none'; adminPage.style.display = 'none'; vipPage.style.display = 'none'; 
+            welcomeScreen.style.display = 'flex'; 
+            closeAllModals(); 
+            if (!skipLangUpdate) applyLanguageToDOM(); 
+            // لا نمسح بيانات الحساب ولا الرصيد
+        }
 
         function updateInviteModalContent() {
             const acc = getSavedAccount(); if (!acc) return;
@@ -1570,8 +1591,22 @@
                     showToast('withdrawAddressRequired');
                     return;
                 }
+                // محاكاة السحب: خصم المبلغ من الرصيد
+                const withdrawAmount = parseFloat(amount);
+                if (withdrawAmount > accountBalance) {
+                    showToast('رصيد غير كاف', true);
+                    return;
+                }
+                accountBalance -= withdrawAmount;
+                const acc = getSavedAccount();
+                if (acc) {
+                    acc.balance = accountBalance;
+                    saveAccount(acc);
+                }
+                updateBalanceDisplay();
                 showToast('withdrawSuccess');
                 if (withdrawModal.classList.contains('show')) closeModal(withdrawModal);
+                // إعادة فتح نافذة السحب إذا كانت ضمن المحفظة قد تحتاج تحديث
             });
         }
 
@@ -1639,6 +1674,22 @@
                 currentDepositNetwork='trc20';
                 container.innerHTML = `<div style="padding: 8px 0;">${document.getElementById('depositModal').querySelector('.modal-card').innerHTML}</div>`;
                 updateDepositModalContent();
+                // محاكاة الإيداع: إضافة مبلغ عند النقر على نسخ العنوان (كمثال فقط)
+                // في الواقع لن نضيف تلقائي، لكن نضبط مستمع لإضافة رصيد تجريبي عند الحاجة
+                const copyBtn = container.querySelector('#copyDepositAddressBtn');
+                if(copyBtn) {
+                    copyBtn.addEventListener('click', function() {
+                        // محاكاة إيداع 100 USDT كمثال للتوضيح
+                        accountBalance += 100;
+                        const acc = getSavedAccount();
+                        if (acc) {
+                            acc.balance = accountBalance;
+                            saveAccount(acc);
+                        }
+                        updateBalanceDisplay();
+                        showToast('تم إيداع 100 USDT (تجريبي)', true);
+                    });
+                }
             } else if (activeTab === 'withdraw') {
                 container.innerHTML = `<div id="walletWithdrawContainer" class="withdraw-form-container" style="padding: 16px;"></div>`;
                 renderWithdrawForm(document.getElementById('walletWithdrawContainer'), { network: currentWithdrawNetwork });
@@ -1654,6 +1705,7 @@
                 document.getElementById('submitInternalTransfer')?.addEventListener('click', ()=>{
                     const pwd = document.getElementById('transferPassword').value;
                     if (!pwd) { showToast('transferPasswordRequired'); return; }
+                    // محاكاة تحويل (لا يؤثر على الرصيد في النسخة التجريبية)
                     showToast('transferSuccess');
                 });
             } else if (activeTab === 'history') {
@@ -1789,9 +1841,8 @@
             if (!firstName || !lastName || !username || !email || !password) { showToast('fillAllFields'); return; }
             if (!/^\S+@\S+\.\S+$/.test(email)) { showToast('invalidEmail'); return; }
             if (password.length < 6) { showToast('passwordMinLength'); return; }
-            const newAccount = { firstName, lastName, username, email, password, invite: document.getElementById('inviteCode').value.trim(), createdAt: new Date().toISOString(), subscribed: false, userId: generateUserId() };
+            const newAccount = { firstName, lastName, username, email, password, invite: document.getElementById('inviteCode').value.trim(), createdAt: new Date().toISOString(), subscribed: false, userId: generateUserId(), balance: 0.00 };
             newAccount.referralCode = generateReferralCode(); newAccount.referralLink = `https://kodx.com/ref/${newAccount.referralCode}`;
-            // تعيين العناوين الثابتة
             newAccount.depositAddresses = { ...FIXED_DEPOSIT_ADDRESSES };
             saveAccount(newAccount); saveReferralStats({ total: 0, rewards: 0, l1: 0, l2: 0, l3: 0 }); showToast('accountCreated');
             ['firstName','lastName','username','signupEmail','signupPassword','inviteCode'].forEach(id => document.getElementById(id).value = '');
@@ -1837,7 +1888,7 @@
             const nav = this.dataset.nav;
             if (nav === 'market') openMarketPage();
             else if (nav === 'admin') openAdminPage();
-            else if (nav === 'trade') openTradePage(); // غير موجود بالشريط لكن تبقى للتوافق
+            else if (nav === 'trade') openTradePage();
             else if (nav === 'wallet') openWalletPage();
             else if (nav === 'vip') openVipPage();
         }));
@@ -1905,8 +1956,20 @@
         document.getElementById('notificationsBtn').addEventListener('click', openNotificationsModal);
 
         function checkInitialState() {
-            applyLanguageToDOM(); updateBalanceDisplay();
-            if (isLoggedIn() && getSavedAccount()) enterMainApp(); else { welcomeScreen.style.display='flex'; mainApp.style.display='none'; tradePage.style.display='none'; walletPage.style.display='none'; marketPage.style.display='none'; adminPage.style.display='none'; vipPage.style.display='none'; }
+            applyLanguageToDOM(); 
+            const acc = getSavedAccount();
+            if (acc) accountBalance = acc.balance || 0.00;
+            updateBalanceDisplay();
+            if (isLoggedIn() && acc) enterMainApp(); 
+            else { 
+                welcomeScreen.style.display='flex'; 
+                mainApp.style.display='none'; 
+                tradePage.style.display='none'; 
+                walletPage.style.display='none'; 
+                marketPage.style.display='none'; 
+                adminPage.style.display='none'; 
+                vipPage.style.display='none'; 
+            }
         }
         checkInitialState();
     })();
