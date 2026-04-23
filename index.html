@@ -1238,6 +1238,7 @@
         function openModal(modal) { if(modal) modal.classList.add('show'); }
         function closeAllModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('show')); }
 
+        // إجبار الرصيد على الصفر
         let accountBalance = 0.00;
         let balanceHidden = JSON.parse(localStorage.getItem(STORAGE_KEYS.BALANCE_HIDDEN) || 'false');
 
@@ -1286,7 +1287,8 @@
 
         function updateBalanceDisplay() {
             const mainEl = document.getElementById('mainWalletBalanceDisplay');
-            if (mainEl) mainEl.textContent = balanceHidden ? '****' : `$${accountBalance.toFixed(2)}`;
+            // إجبار العرض على الصفر مع مراعاة حالة الإخفاء
+            if (mainEl) mainEl.textContent = balanceHidden ? '****' : '$0.00';
             const eyeIcon = document.getElementById('toggleMainBalanceEye');
             if (eyeIcon) eyeIcon.className = balanceHidden ? 'fas fa-eye-slash' : 'fas fa-eye';
             localStorage.setItem(STORAGE_KEYS.BALANCE_HIDDEN, balanceHidden);
@@ -1303,13 +1305,14 @@
             closeAllModals(); setLoggedIn(true); activateHomeTab();
             const acc = getSavedAccount();
             if(acc) {
+                // تجهيز الحساب لكن الرصيد يبقى صفرًا
                 if (!acc.referralCode) { acc.referralCode = generateReferralCode(); acc.referralLink = `https://kodx.com/ref/${acc.referralCode}`; if (acc.subscribed === undefined) acc.subscribed = false; }
                 if (!acc.userId) acc.userId = generateUserId();
                 ensureDepositAddresses(acc);
                 if (!localStorage.getItem(STORAGE_KEYS.REFERRAL_STATS)) saveReferralStats({ total: 0, rewards: 0, l1: 0, l2: 0, l3: 0 });
-                // استعادة الرصيد من الحساب
-                accountBalance = acc.balance || 0.00;
             }
+            // إجبار الرصيد صفر مهما كان المخزن
+            accountBalance = 0.00;
             applyLanguageToDOM(); updateInviteModalContent(); updateBalanceDisplay();
             populateHomeMarketList();
             startWithdrawalsTicker();
@@ -1536,7 +1539,8 @@
 
         // ---------- دالة عرض نموذج السحب ----------
         function renderWithdrawForm(containerElement, options = {}) {
-            const available = accountBalance * 0.85;
+            // مع إجبار الرصيد صفر، المتاح للسحب = 0
+            const available = 0.00;
             const hidden = balanceHidden;
             const network = options.network || 'trc20';
             const container = typeof containerElement === 'string' ? document.getElementById(containerElement) : containerElement;
@@ -1545,7 +1549,7 @@
             container.innerHTML = `
                 <div class="balance-row" style="margin-bottom: 16px;">
                     <span style="color: #b0bed6;">الرصيد المتاح للسحب</span>
-                    <span style="font-weight: 700; font-size: 18px;" id="withdrawAvailableDisplay">${hidden ? '****' : '$' + available.toFixed(2)}</span>
+                    <span style="font-weight: 700; font-size: 18px;" id="withdrawAvailableDisplay">${hidden ? '****' : '$0.00'}</span>
                 </div>
                 <div class="withdraw-network-tabs">
                     <button class="network-tab ${network === 'trc20' ? 'active' : ''}" data-wd-network="trc20">TRC20 (USDT)</button>
@@ -1591,22 +1595,9 @@
                     showToast('withdrawAddressRequired');
                     return;
                 }
-                // محاكاة السحب: خصم المبلغ من الرصيد
-                const withdrawAmount = parseFloat(amount);
-                if (withdrawAmount > accountBalance) {
-                    showToast('رصيد غير كاف', true);
-                    return;
-                }
-                accountBalance -= withdrawAmount;
-                const acc = getSavedAccount();
-                if (acc) {
-                    acc.balance = accountBalance;
-                    saveAccount(acc);
-                }
-                updateBalanceDisplay();
+                // بما أن الرصيد صفر، السحب مستحيل لكن نحاكي نجاح الطلب
                 showToast('withdrawSuccess');
                 if (withdrawModal.classList.contains('show')) closeModal(withdrawModal);
-                // إعادة فتح نافذة السحب إذا كانت ضمن المحفظة قد تحتاج تحديث
             });
         }
 
@@ -1631,8 +1622,10 @@
         function renderWalletTabContent() {
             const activeTab = document.querySelector('.wallet-tab.active')?.dataset.walletTab || 'overview';
             const container = document.getElementById('walletTabContent');
-            const balanceAvailable = accountBalance * 0.85;
-            const frozen = accountBalance * 0.05;
+            // جميع الأرصدة مجبرة على الصفر
+            const balanceTotal = 0.00;
+            const balanceAvailable = 0.00;
+            const frozen = 0.00;
             const totalDeposits = 0;
             const todayProfit = 0;
             const hidden = balanceHidden;
@@ -1645,24 +1638,24 @@
                                 <span class="overview-title">إجمالي الرصيد</span>
                                 <i class="fas ${hidden ? 'fa-eye-slash' : 'fa-eye'} eye-icon" id="overviewToggleEye"></i>
                             </div>
-                            <div class="overview-amount" id="overviewTotalBalance">${hidden ? '****' : '$' + accountBalance.toFixed(2)}</div>
+                            <div class="overview-amount" id="overviewTotalBalance">${hidden ? '****' : '$0.00'}</div>
                         </div>
                         <div class="colorful-grid">
                             <div class="colorful-item" style="border-left-color: #3b82f6;">
                                 <div class="item-label">الرصيد المتاح</div>
-                                <div class="item-value" style="color: #60a5fa;">${hidden ? '****' : '$' + balanceAvailable.toFixed(2)}</div>
+                                <div class="item-value" style="color: #60a5fa;">${hidden ? '****' : '$0.00'}</div>
                             </div>
                             <div class="colorful-item" style="border-left-color: #ef4444;">
                                 <div class="item-label">الرصيد المجمد</div>
-                                <div class="item-value" style="color: #f87171;">${hidden ? '****' : '$' + frozen.toFixed(2)}</div>
+                                <div class="item-value" style="color: #f87171;">${hidden ? '****' : '$0.00'}</div>
                             </div>
                             <div class="colorful-item" style="border-left-color: #10b981;">
                                 <div class="item-label">إجمالي الإيداعات</div>
-                                <div class="item-value" style="color: #34d399;">${hidden ? '****' : '$' + totalDeposits.toFixed(2)}</div>
+                                <div class="item-value" style="color: #34d399;">${hidden ? '****' : '$0.00'}</div>
                             </div>
                             <div class="colorful-item" style="border-left-color: #f59e0b;">
                                 <div class="item-label">أرباح اليوم</div>
-                                <div class="item-value" style="color: #fbbf24;">${hidden ? '****' : '$' + todayProfit.toFixed(2)}</div>
+                                <div class="item-value" style="color: #fbbf24;">${hidden ? '****' : '$0.00'}</div>
                             </div>
                         </div>
                     </div>`;
@@ -1674,29 +1667,14 @@
                 currentDepositNetwork='trc20';
                 container.innerHTML = `<div style="padding: 8px 0;">${document.getElementById('depositModal').querySelector('.modal-card').innerHTML}</div>`;
                 updateDepositModalContent();
-                // محاكاة الإيداع: إضافة مبلغ عند النقر على نسخ العنوان (كمثال فقط)
-                // في الواقع لن نضيف تلقائي، لكن نضبط مستمع لإضافة رصيد تجريبي عند الحاجة
-                const copyBtn = container.querySelector('#copyDepositAddressBtn');
-                if(copyBtn) {
-                    copyBtn.addEventListener('click', function() {
-                        // محاكاة إيداع 100 USDT كمثال للتوضيح
-                        accountBalance += 100;
-                        const acc = getSavedAccount();
-                        if (acc) {
-                            acc.balance = accountBalance;
-                            saveAccount(acc);
-                        }
-                        updateBalanceDisplay();
-                        showToast('تم إيداع 100 USDT (تجريبي)', true);
-                    });
-                }
+                // لا إضافة رصيد عند نسخ العنوان – تمت إزالة المستمع السابق
             } else if (activeTab === 'withdraw') {
                 container.innerHTML = `<div id="walletWithdrawContainer" class="withdraw-form-container" style="padding: 16px;"></div>`;
                 renderWithdrawForm(document.getElementById('walletWithdrawContainer'), { network: currentWithdrawNetwork });
             } else if (activeTab === 'transfer') {
                 container.innerHTML = `
                     <div style="padding: 16px;">
-                        <div class="input-group"><label>الرصيد المتاح</label><input class="input-field" value="$${balanceAvailable.toFixed(2)}" readonly disabled></div>
+                        <div class="input-group"><label>الرصيد المتاح</label><input class="input-field" value="$0.00" readonly disabled></div>
                         <div class="input-group"><label>المستلم (معرف أو اسم مستخدم)</label><input class="input-field" id="transferRecipient" placeholder="أدخل المعرف أو اسم المستخدم"></div>
                         <div class="input-group"><label>المبلغ</label><input class="input-field" type="number" id="transferAmount" placeholder="0.00"></div>
                         <div class="input-group"><label>كلمة المرور (للتحقق)</label><input class="input-field" type="password" id="transferPassword" placeholder="********"></div>
@@ -1705,7 +1683,6 @@
                 document.getElementById('submitInternalTransfer')?.addEventListener('click', ()=>{
                     const pwd = document.getElementById('transferPassword').value;
                     if (!pwd) { showToast('transferPasswordRequired'); return; }
-                    // محاكاة تحويل (لا يؤثر على الرصيد في النسخة التجريبية)
                     showToast('transferSuccess');
                 });
             } else if (activeTab === 'history') {
@@ -1958,7 +1935,8 @@
         function checkInitialState() {
             applyLanguageToDOM(); 
             const acc = getSavedAccount();
-            if (acc) accountBalance = acc.balance || 0.00;
+            // إجبار الرصيد صفر
+            accountBalance = 0.00;
             updateBalanceDisplay();
             if (isLoggedIn() && acc) enterMainApp(); 
             else { 
